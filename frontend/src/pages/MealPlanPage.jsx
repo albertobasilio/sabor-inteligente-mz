@@ -173,11 +173,7 @@ const MealPlanPage = () => {
                                 <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>
                                     Semana: {new Date(plan.week_start).toLocaleDateString('pt-MZ')} - {new Date(plan.week_end).toLocaleDateString('pt-MZ')}
                                 </h3>
-                                {plan.total_cost_mt > 0 && (
-                                    <span style={{ fontSize: '0.85rem', color: 'var(--color-accent)' }}>
-                                        💰 Custo estimado: {plan.total_cost_mt} MT
-                                    </span>
-                                )}
+                                
                             </div>
                             <button className="btn btn-sm btn-secondary" onClick={() => handleDelete(plan.id)} style={{ color: '#ff4757' }}>
                                 🗑️ Remover
@@ -220,3 +216,4 @@ const MealPlanPage = () => {
 };
 
 export default MealPlanPage;
+

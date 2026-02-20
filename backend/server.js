@@ -85,6 +85,7 @@ app.use('/api/shopping-lists', require('./routes/shoppingListRoutes'));
 app.use('/api/nutrition', require('./routes/nutritionRoutes'));
 app.use('/api/ai', aiLimiter, require('./routes/aiRoutes'));
 app.use('/api/favorites', require('./routes/favoriteRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 // Health check
 app.get('/api/health', (req, res) => {

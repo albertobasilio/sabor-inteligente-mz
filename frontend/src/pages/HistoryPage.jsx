@@ -81,11 +81,11 @@ const HistoryPage = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <span style={{ fontSize: '1.3rem' }}>
-                                            {scan.scan_type === 'geladeira' ? '🧊' : scan.scan_type === 'despensa' ? '🗄️' : '🛒'}
+                                            {scan.scan_type === 'geladeira' ? '🧊' : scan.scan_type === 'despensa' ? '🗄️' : scan.scan_type === 'IA Scan' ? '🤖' : '🛒'}
                                         </span>
                                         <div>
                                             <h3 style={{ fontSize: '.95rem', fontWeight: 700 }}>
-                                                Scan {scan.scan_type === 'geladeira' ? 'Geladeira' : scan.scan_type === 'despensa' ? 'Despensa' : 'Mercado'}
+                                                {scan.scan_type === 'geladeira' ? 'Scan Geladeira' : scan.scan_type === 'despensa' ? 'Scan Despensa' : scan.scan_type === 'IA Scan' ? 'Scan IA' : 'Scan Mercado'}
                                             </h3>
                                             <p style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>
                                                 {formatDate(scan.created_at)}

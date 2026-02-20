@@ -1,19 +1,31 @@
 const jwt = require('jsonwebtoken');
+const db = require('../config/database');
 require('dotenv').config();
 
-const auth = (req, res, next) => {
+const auth = async (req, res, next) => {
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-        return res.status(401).json({ message: 'Acesso negado. Token não fornecido.' });
+        return res.status(401).json({ message: 'Acesso negado. Token nao fornecido.' });
     }
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+        const [users] = await db.query('SELECT * FROM users WHERE id = ? LIMIT 1', [decoded.id]);
+
+        if (users.length === 0) {
+            return res.status(401).json({ message: 'Utilizador nao encontrado.' });
+        }
+
+        req.user = {
+            ...decoded,
+            plan: users[0].plan || 'free',
+            role: users[0].role || 'user'
+        };
+
         next();
     } catch (err) {
-        return res.status(401).json({ message: 'Token inválido ou expirado.' });
+        return res.status(401).json({ message: 'Token invalido ou expirado.' });
     }
 };
 

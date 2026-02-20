@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const logger = require('../utils/logger');
 const asyncHandler = require('../middleware/asyncHandler');
 
 // Get all ingredients
@@ -38,6 +39,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // Save scan results (confirmed ingredients)
 exports.saveScanResults = asyncHandler(async (req, res) => {
+    logger.info(`Salvando scan para usuário ${req.user.id}, tipo: ${req.body.scan_type}`);
     const { scan_type, detected_ingredients, confirmed_ingredients, image_url } = req.body;
 
     const [result] = await db.query(

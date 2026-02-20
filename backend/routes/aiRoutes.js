@@ -19,5 +19,6 @@ const upload = multer({
 
 router.post('/analyze-image', auth, upload.single('image'), aiController.analyzeImage);
 router.post('/generate-recipes', auth, aiController.generateRecipes);
+router.post('/enrich-instructions', auth, aiController.enrichInstructions);
 
 module.exports = router;

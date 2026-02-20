@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(20),
   region VARCHAR(100) DEFAULT 'Maputo',
   avatar VARCHAR(255),
-  plan ENUM('free', 'premium') DEFAULT 'free',
+  plan VARCHAR(50) DEFAULT 'free',
+  role VARCHAR(20) DEFAULT 'user',
+  free_scan_used TINYINT(1) DEFAULT 0,
+  scan_count INT DEFAULT 0,
+  last_scan_date DATE DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -67,7 +71,7 @@ CREATE TABLE IF NOT EXISTS scan_history (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   image_url VARCHAR(500),
-  scan_type ENUM('geladeira', 'despensa', 'mercado') DEFAULT 'geladeira',
+  scan_type VARCHAR(50) DEFAULT 'geladeira',
   detected_ingredients JSON,
   confirmed_ingredients JSON,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -225,6 +229,18 @@ CREATE TABLE IF NOT EXISTS user_favorites (
   UNIQUE KEY unique_favorite (user_id, recipe_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Password reset codes
+CREATE TABLE IF NOT EXISTS password_reset_codes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  email VARCHAR(150) NOT NULL,
+  code_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

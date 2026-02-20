@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://102.211.186.44:5002/api';
+const API_URL = 'http://localhost:5000/api';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -33,6 +33,8 @@ api.interceptors.response.use(
 export const authService = {
     login: (data) => api.post('/auth/login', data),
     register: (data) => api.post('/auth/register', data),
+    forgotPassword: (data) => api.post('/auth/forgot-password', data),
+    resetPassword: (data) => api.post('/auth/reset-password', data),
     getProfile: () => api.get('/auth/profile'),
     updateProfile: (data) => api.put('/auth/profile', data),
     updateDietaryProfile: (data) => api.put('/auth/dietary-profile', data),
@@ -88,6 +90,7 @@ export const aiService = {
     }),
     analyzeImageBase64: (image) => api.post('/ai/analyze-image', { image }),
     generateRecipes: (data) => api.post('/ai/generate-recipes', data),
+    enrichInstructions: (data) => api.post('/ai/enrich-instructions', data),
 };
 
 // Favorites
@@ -96,6 +99,12 @@ export const favoriteService = {
     add: (recipeId) => api.post('/favorites', { recipe_id: recipeId }),
     remove: (recipeId) => api.delete(`/favorites/${recipeId}`),
     check: (recipeId) => api.get(`/favorites/check/${recipeId}`),
+};
+
+// Admin
+export const adminService = {
+    getUsers: () => api.get('/admin/users'),
+    updateUserAccess: (id, data) => api.put(`/admin/users/${id}/access`, data),
 };
 
 export default api;

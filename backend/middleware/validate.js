@@ -40,6 +40,25 @@ const validateLogin = [
     handleValidation
 ];
 
+const validateForgotPassword = [
+    body('email')
+        .trim().isEmail().withMessage('Email invalido.')
+        .normalizeEmail(),
+    handleValidation
+];
+
+const validateResetPassword = [
+    body('email')
+        .trim().isEmail().withMessage('Email invalido.')
+        .normalizeEmail(),
+    body('code')
+        .trim().isLength({ min: 6, max: 6 }).withMessage('Codigo deve ter 6 digitos.')
+        .isNumeric().withMessage('Codigo invalido.'),
+    body('new_password')
+        .isLength({ min: 6 }).withMessage('Nova senha deve ter pelo menos 6 caracteres.'),
+    handleValidation
+];
+
 const validateProfile = [
     body('name')
         .optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nome inválido.'),
@@ -78,6 +97,8 @@ const validateNutritionLog = [
 module.exports = {
     validateRegister,
     validateLogin,
+    validateForgotPassword,
+    validateResetPassword,
     validateProfile,
     validateRecipeGenerate,
     validateMealPlan,

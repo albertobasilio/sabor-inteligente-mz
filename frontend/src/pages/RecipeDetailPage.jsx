@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { recipeService, favoriteService } from '../services/api';
+import { recipeService, favoriteService, aiService } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 const RecipeDetailPage = () => {
@@ -9,6 +9,7 @@ const RecipeDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [isFavorite, setIsFavorite] = useState(false);
     const [favLoading, setFavLoading] = useState(false);
+    const [enriching, setEnriching] = useState(false);
     const toast = useToast();
 
     useEffect(() => {
@@ -62,6 +63,30 @@ const RecipeDetailPage = () => {
             toast.success('Link copiado! 📋');
         } catch {
             toast.error('Erro ao copiar');
+        }
+    };
+
+    const enrichRecipe = async () => {
+        setEnriching(true);
+        try {
+            const ingredientNames = (recipe.ingredients || []).map(i => i.ingredient_name || i.name).filter(Boolean);
+            const res = await aiService.enrichInstructions({
+                title: recipe.title,
+                description: recipe.description,
+                ingredients: ingredientNames,
+                current_instructions: recipe.instructions
+            });
+            if (res.data && res.data.instructions) {
+                setRecipe(prev => ({ ...prev, instructions: res.data.instructions }));
+                toast.success('Instruções detalhadas geradas com sucesso! ✨');
+            } else {
+                toast.error('Não foi possível gerar instruções detalhadas.');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Erro ao detalhar receita com IA.');
+        } finally {
+            setEnriching(false);
         }
     };
 
@@ -239,26 +264,96 @@ const RecipeDetailPage = () => {
 
             {/* Instructions */}
             <div className="card" style={{ marginTop: 24 }}>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 16 }}>👨‍🍳 Modo de Preparo</h2>
-                <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: 'var(--text-secondary)' }}>
-                    {(recipe.instructions || '').split('\n').filter(s => s.trim()).map((step, i) => (
-                        <div key={i} style={{
-                            display: 'flex', gap: 12, marginBottom: 12, padding: '8px 12px',
-                            background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                            borderRadius: 'var(--radius-sm)'
-                        }}>
-                            <span style={{
-                                background: 'var(--color-primary)', color: 'white',
-                                width: 24, height: 24, borderRadius: '50%', display: 'flex',
-                                alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem',
-                                fontWeight: 700, flexShrink: 0, marginTop: 2
-                            }}>
-                                {i + 1}
-                            </span>
-                            <span>{step.replace(/^\d+\.\s*/, '')}</span>
-                        </div>
-                    ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>👨‍🍳 Modo de Preparo</h2>
+                    {!enriching && (
+                        <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={enrichRecipe}
+                            title="Gerar instruções mais detalhadas com IA"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.75rem' }}
+                        >
+                            ✨ Detalhar com IA
+                        </button>
+                    )}
+                    {enriching && (
+                        <span style={{ fontSize: '.8rem', color: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="spinner" style={{ width: 16, height: 16 }} /> Gerando passos detalhados...
+                        </span>
+                    )}
                 </div>
+
+                {/* Step count summary */}
+                {(() => {
+                    const steps = (recipe.instructions || '').split('\n').filter(s => s.trim());
+                    return (
+                        <>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
+                                padding: '10px 14px', borderRadius: 10,
+                                background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.1)'
+                            }}>
+                                <span style={{ fontSize: '1.2rem' }}>📋</span>
+                                <span style={{ fontSize: '.82rem', color: 'var(--text-secondary)' }}>
+                                    <strong>{steps.length} passos</strong> de preparação
+                                    {recipe.prep_time_min > 0 && <> · <strong>{recipe.prep_time_min} min</strong> de preparo</>}
+                                    {recipe.cook_time_min > 0 && <> · <strong>{recipe.cook_time_min} min</strong> de cozedura</>}
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                {steps.map((step, i) => {
+                                    const cleanStep = step.replace(/^\d+[\.\)\-]\s*/, '').trim();
+                                    if (!cleanStep) return null;
+                                    const isLast = i === steps.length - 1;
+                                    return (
+                                        <div key={i} style={{
+                                            display: 'flex', gap: 16, position: 'relative',
+                                            paddingBottom: isLast ? 0 : 8, minHeight: 60
+                                        }}>
+                                            {/* Timeline connector line */}
+                                            {!isLast && (
+                                                <div style={{
+                                                    position: 'absolute', left: 15, top: 32,
+                                                    width: 2, bottom: 0,
+                                                    background: 'linear-gradient(to bottom, rgba(52,211,153,0.3), rgba(52,211,153,0.05))'
+                                                }} />
+                                            )}
+
+                                            {/* Step number circle */}
+                                            <div style={{
+                                                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                                                background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))',
+                                                color: '#064e3b',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '.8rem', fontWeight: 800,
+                                                boxShadow: '0 2px 8px rgba(52,211,153,0.3)',
+                                                zIndex: 1
+                                            }}>
+                                                {i + 1}
+                                            </div>
+
+                                            {/* Step content */}
+                                            <div style={{
+                                                flex: 1, padding: '6px 16px 16px',
+                                                borderRadius: 10,
+                                                background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                                            }}>
+                                                <p style={{
+                                                    fontSize: '.9rem', color: 'var(--text-secondary)',
+                                                    lineHeight: 1.7, margin: 0,
+                                                    wordWrap: 'break-word', whiteSpace: 'pre-wrap'
+                                                }}>
+                                                    {cleanStep}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    );
+                })()}
             </div>
         </div>
     );

@@ -4,6 +4,7 @@ const db = require('../config/database');
 const asyncHandler = require('../middleware/asyncHandler');
 const { AppError } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
+const { sendRecoveryCode } = require('../services/emailService');
 require('dotenv').config();
 
 // Register
@@ -36,7 +37,14 @@ exports.register = asyncHandler(async (req, res) => {
     res.status(201).json({
         message: 'Conta criada com sucesso!',
         token,
-        user: { id: result.insertId, name, email, region: region || 'Maputo' }
+        user: {
+            id: result.insertId,
+            name,
+            email,
+            region: region || 'Maputo',
+            plan: 'free',
+            role: 'user'
+        }
     });
 });
 
@@ -72,17 +80,15 @@ exports.login = asyncHandler(async (req, res) => {
             email: user.email,
             phone: user.phone,
             region: user.region,
-            plan: user.plan
+            plan: user.plan,
+            role: user.role || 'user'
         }
     });
 });
 
 // Get profile
 exports.getProfile = asyncHandler(async (req, res) => {
-    const [users] = await db.query(
-        'SELECT id, name, email, phone, region, plan, created_at FROM users WHERE id = ?',
-        [req.user.id]
-    );
+    const [users] = await db.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
     if (users.length === 0) {
         throw new AppError('Utilizador não encontrado.', 404);
     }
@@ -92,7 +98,20 @@ exports.getProfile = asyncHandler(async (req, res) => {
         [req.user.id]
     );
 
-    res.json({ user: users[0], dietaryProfile: dietary[0] || null });
+    const profile = users[0];
+    res.json({
+        user: {
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            phone: profile.phone,
+            region: profile.region,
+            plan: profile.plan,
+            role: profile.role || 'user',
+            created_at: profile.created_at
+        },
+        dietaryProfile: dietary[0] || null
+    });
 });
 
 // Update profile
@@ -136,4 +155,73 @@ exports.updateDietaryProfile = asyncHandler(async (req, res) => {
     }
 
     res.json({ message: 'Perfil alimentar atualizado com sucesso!' });
+});
+
+// Forgot password - send code to email
+exports.forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    const [users] = await db.query('SELECT id, email FROM users WHERE LOWER(email) = ? LIMIT 1', [normalizedEmail]);
+
+    // Always return generic success (avoid account enumeration).
+    if (users.length === 0) {
+        return res.json({ message: 'Se o email existir, um codigo de recuperacao foi enviado.' });
+    }
+
+    const user = users[0];
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 10);
+
+    await db.query('UPDATE password_reset_codes SET used = 1 WHERE user_id = ? AND used = 0', [user.id]);
+    await db.query(
+        `INSERT INTO password_reset_codes (user_id, email, code_hash, expires_at, used)
+         VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE), 0)`,
+        [user.id, user.email, codeHash]
+    );
+
+    try {
+        await sendRecoveryCode({ toEmail: user.email, code });
+    } catch (err) {
+        throw new AppError(`Falha ao enviar email de recuperacao: ${err.message}`, 500);
+    }
+
+    res.json({ message: 'Se o email existir, um codigo de recuperacao foi enviado.' });
+});
+
+// Reset password with email + code
+exports.resetPassword = asyncHandler(async (req, res) => {
+    const { email, code, new_password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    const [users] = await db.query('SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1', [normalizedEmail]);
+    if (users.length === 0) {
+        throw new AppError('Codigo invalido ou expirado.', 400);
+    }
+
+    const userId = users[0].id;
+
+    const [codes] = await db.query(
+        `SELECT id, code_hash
+         FROM password_reset_codes
+         WHERE user_id = ? AND used = 0 AND expires_at > NOW()
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [userId]
+    );
+
+    if (codes.length === 0) {
+        throw new AppError('Codigo invalido ou expirado.', 400);
+    }
+
+    const isCodeValid = await bcrypt.compare(String(code), codes[0].code_hash);
+    if (!isCodeValid) {
+        throw new AppError('Codigo invalido ou expirado.', 400);
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE users SET password = ? WHERE id = ?', [newHash, userId]);
+    await db.query('UPDATE password_reset_codes SET used = 1 WHERE id = ?', [codes[0].id]);
+
+    res.json({ message: 'Senha redefinida com sucesso.' });
 });

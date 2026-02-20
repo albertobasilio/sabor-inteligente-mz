@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { aiService, ingredientService } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import {
     Camera, Image as ImageIcon, Sparkles, CheckCircle2, ChefHat,
     Lightbulb, Maximize, Eye, AlertCircle, RefreshCw, X, ArrowLeft,
-    Search, Clock, Flame, Users, MapPin, Cpu, BarChart3
+    Search, Clock, Flame, Users, Cpu, BarChart3, Pencil, Trash2, Check
 } from 'lucide-react';
 
 const steps = [
@@ -54,7 +56,26 @@ const RecipeResultCard = ({ recipe, isOptional }) => {
         return [];
     };
 
+    const getIngSourceStyle = (source) => {
+        if (source === 'scan') return { background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)', color: '#6ee7b7' };
+        if (source === 'comprar') return { background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.25)', color: '#fcd34d' };
+        return { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' };
+    };
+
+    const getIngSourceIcon = (source) => {
+        if (source === 'scan') return '✅';
+        if (source === 'comprar') return '🛒';
+        if (source === 'despensa') return '🏠';
+        return '';
+    };
+
     const recipeSteps = parseSteps(recipe.instructions);
+
+    // Parse missing_ingredients — supports both array of strings and array of objects
+    const missingItems = (recipe.missing_ingredients || []).map(item => {
+        if (typeof item === 'string') return { name: item, estimated_price_mt: null };
+        return item;
+    });
 
     return (
         <div className={`recipe-card ${isOptional ? 'difficulty-medio' : ''}`} style={{ marginBottom: 0 }}>
@@ -71,7 +92,7 @@ const RecipeResultCard = ({ recipe, isOptional }) => {
             <div className="recipe-card-body">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                     <span className={`recipe-badge ${isOptional ? 'difficulty' : 'region'}`}>
-                        {isOptional ? '🛒 Falta pouco' : '✅ Você tem tudo'}
+                        {isOptional ? '🛒 Precisa de mais itens' : '✅ Pronto para cozinhar'}
                     </span>
                     <div style={{ display: 'flex', gap: 8 }}>
                         {recipe.region && <span className="recipe-badge region">{recipe.region}</span>}
@@ -79,6 +100,11 @@ const RecipeResultCard = ({ recipe, isOptional }) => {
                 </div>
 
                 <h3 style={{ fontSize: '1.05rem', marginBottom: 6 }}>{recipe.title}</h3>
+                {recipe.book_reference && (
+                    <p style={{ fontSize: '.75rem', color: '#a78bfa', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        📖 <em>{recipe.book_reference}</em>
+                    </p>
+                )}
                 <p style={{ fontSize: '.85rem', marginBottom: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{recipe.description}</p>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -88,32 +114,52 @@ const RecipeResultCard = ({ recipe, isOptional }) => {
                     {recipe.difficulty && <span className="info-pill"><BarChart3 size={12} /> {recipe.difficulty}</span>}
                 </div>
 
-                {isOptional && recipe.missing_ingredients && (
-                    <div style={{ background: 'rgba(251,191,36,0.08)', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: '.85rem', color: '#fcd34d' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <AlertCircle size={14} /> <strong>Falta comprar:</strong>
+                {/* Missing ingredients section for suggestions */}
+                {isOptional && missingItems.length > 0 && (
+                    <div style={{ background: 'rgba(251,191,36,0.08)', padding: 12, borderRadius: 8, marginBottom: 12, border: '1px solid rgba(251,191,36,0.15)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: '#fcd34d', fontSize: '.8rem', fontWeight: 700 }}>
+                            <AlertCircle size={14} /> PRODUTOS EM FALTA:
                         </div>
-                        {recipe.missing_ingredients.join(', ')}
-                        {recipe.additional_cost_mt && (
-                            <span style={{ display: 'block', marginTop: 4, fontSize: '.78rem', opacity: .8 }}>
-                                💰 Custo adicional: ~{recipe.additional_cost_mt} MT
-                            </span>
-                        )}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {missingItems.map((item, j) => (
+                                <span key={j} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '4px 10px', borderRadius: 20, fontSize: '.8rem',
+                                    background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.25)', color: '#fcd34d'
+                                }}>
+                                    🛒 {item.name}
+                                    
+                                </span>
+                            ))}
+                        </div>
+                        
                     </div>
                 )}
 
+                {/* Ingredients with source indicators */}
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginBottom: 12 }}>
-                    <p style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Produtos (Ingredientes)</p>
+                    <p style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Ingredientes
+                    </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {(recipe.ingredients || []).map((ing, j) => (
-                            <span key={j} className="info-pill" style={{
-                                background: 'rgba(255,255,255,0.04)',
-                                border: ing.is_optional ? '1px dashed rgba(251,191,36,0.3)' : '1px solid transparent'
-                            }}>
-                                {typeof ing === 'string' ? ing : `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`.trim()}
-                            </span>
-                        ))}
+                        {(recipe.ingredients || []).map((ing, j) => {
+                            const source = typeof ing === 'object' ? ing.source : null;
+                            const sourceStyle = getIngSourceStyle(source);
+                            const sourceIcon = getIngSourceIcon(source);
+                            const text = typeof ing === 'string' ? ing : `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`.trim();
+                            return (
+                                <span key={j} className="info-pill" style={sourceStyle}>
+                                    {sourceIcon && <span style={{ fontSize: '.7rem' }}>{sourceIcon}</span>} {text}
+                                </span>
+                            );
+                        })}
                     </div>
+                    {!isOptional && (
+                        <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: '.7rem', color: 'var(--text-muted)' }}>
+                            <span>✅ Do seu scan</span>
+                            <span>🏠 Despensa básica</span>
+                        </div>
+                    )}
                 </div>
 
                 <button
@@ -166,6 +212,15 @@ const RecipeResultCard = ({ recipe, isOptional }) => {
                                 </ul>
                             </div>
                         )}
+
+                        {recipe.cultural_note && (
+                            <div style={{ marginTop: 10, padding: 12, background: 'rgba(139,92,246,0.04)', borderRadius: 8, border: '1px solid rgba(139,92,246,0.1)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, color: '#a78bfa', fontSize: '.75rem', fontWeight: 700 }}>
+                                    🇲🇿 NOTA CULTURAL
+                                </div>
+                                <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>{recipe.cultural_note}</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -186,9 +241,15 @@ const ScanPage = () => {
     const [scanMessage, setScanMessage] = useState(scanMessages[0]);
     const [imageQuality, setImageQuality] = useState(null);
     const [manualInput, setManualInput] = useState('');
+    const [editingIdx, setEditingIdx] = useState(null);
+    const [editingName, setEditingName] = useState('');
+    const [showLimitModal, setShowLimitModal] = useState(false);
+    const [limitMessage, setLimitMessage] = useState('');
     const cameraInputRef = useRef(null);
     const galleryInputRef = useRef(null);
     const toast = useToast();
+    const navigate = useNavigate();
+    const { user } = useAuth();
 
     const currentStepIdx = steps.findIndex(s =>
         s.key === step ||
@@ -272,11 +333,17 @@ const ScanPage = () => {
             setConfirmed(items.filter(i => i.confidence >= 0.5).map(i => i.name));
             setImageQuality(res.data.image_quality || 'boa');
             setStep('confirm');
-            toast.success(`${items.length} ingredientes encontrados!`);
+            toast.success(`${items.length} produtos encontrados!`);
         } catch (err) {
             clearInterval(interval);
-            setError('Erro ao analisar. Tente novamente.');
-            setStep('upload');
+            if (err.response && err.response.status === 403 && err.response.data.limitReached) {
+                setLimitMessage(err.response.data.message || 'Voce atingiu o limite diario de scans do seu plano atual. Faça upgrade para continuar escaneando hoje.');
+                setShowLimitModal(true);
+                setStep('upload'); // Go back to upload step visually but show modal
+            } else {
+                setError('Erro ao analisar. Tente novamente.');
+                setStep('upload');
+            }
         } finally {
             setLoading(false);
         }
@@ -288,7 +355,7 @@ const ScanPage = () => {
         );
     };
 
-    const addManualIngredient = () => {
+    const addManualIngredient = (goToConfirm = false) => {
         const name = manualInput.trim();
         if (!name) return;
         if (detected.some(d => d.name.toLowerCase() === name.toLowerCase())) {
@@ -300,6 +367,37 @@ const ScanPage = () => {
         setConfirmed(prev => [...prev, name]);
         setManualInput('');
         toast.success(`${name} adicionado!`);
+        if (goToConfirm) {
+            setStep('confirm');
+        }
+    };
+
+    const startEdit = (idx) => {
+        setEditingIdx(idx);
+        setEditingName(detected[idx].name);
+    };
+
+    const saveEdit = () => {
+        const newName = editingName.trim();
+        if (!newName) return;
+        const oldName = detected[editingIdx].name;
+        setDetected(prev => prev.map((item, i) => i === editingIdx ? { ...item, name: newName } : item));
+        setConfirmed(prev => prev.map(n => n === oldName ? newName : n));
+        setEditingIdx(null);
+        setEditingName('');
+        toast.success(`Produto corrigido para "${newName}"`);
+    };
+
+    const cancelEdit = () => {
+        setEditingIdx(null);
+        setEditingName('');
+    };
+
+    const removeProduct = (idx) => {
+        const name = detected[idx].name;
+        setDetected(prev => prev.filter((_, i) => i !== idx));
+        setConfirmed(prev => prev.filter(n => n !== name));
+        toast.success(`"${name}" removido`);
     };
 
     const handleGenerateRecipes = async () => {
@@ -307,16 +405,26 @@ const ScanPage = () => {
         setGeneratingRecipes(true);
         setError('');
         try {
-            await ingredientService.saveScan({
-                scan_type: 'IA Scan',
-                detected_ingredients: detected,
-                confirmed_ingredients: confirmed
+            // Save scan (non-blocking — don't fail if save fails)
+            try {
+                await ingredientService.saveScan({
+                    scan_type: 'IA Scan',
+                    detected_ingredients: detected,
+                    confirmed_ingredients: confirmed
+                });
+            } catch (saveErr) {
+                console.warn('Falha ao salvar scan:', saveErr);
+            }
+
+            const res = await aiService.generateRecipes({
+                ingredients: confirmed,
+                dietary_profile: user?.dietary_preferences || {}
             });
-            const res = await aiService.generateRecipes({ ingredients: confirmed });
             setGeneratedRecipes(res.data);
             setStep('recipes');
         } catch (err) {
-            setError('Erro ao gerar sugestões. Tente novamente.');
+            const msg = err.response?.data?.message || 'Erro ao gerar sugestões. Tente novamente.';
+            setError(msg);
         } finally {
             setGeneratingRecipes(false);
         }
@@ -337,10 +445,48 @@ const ScanPage = () => {
         setError('');
         setImageQuality(null);
         setManualInput('');
+        setShowLimitModal(false);
+        setLimitMessage('');
     };
 
     return (
         <div className="page-enter">
+            {showLimitModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                }}>
+                    <div className="auth-card" style={{ maxWidth: 400, textAlign: 'center', animation: 'scaleIn 0.3s' }}>
+                        <div style={{
+                            width: 60, height: 60, borderRadius: '50%', background: 'var(--color-accent)',
+                            margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'white'
+                        }}>
+                            <Camera size={30} />
+                        </div>
+                        <h2 style={{ fontSize: '1.5rem', marginBottom: 12 }}>Limite Atingido!</h2>
+                                                <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+                            {limitMessage || 'Voce atingiu o limite diario de scans do seu plano atual. Faca upgrade para continuar escaneando hoje.'}
+                        </p>
+                        <button
+                            className="btn btn-primary btn-lg"
+                            style={{ width: '100%', marginBottom: 12 }}
+                            onClick={() => navigate('/plans')}
+                        >
+                            Ver Planos
+                        </button>
+                        <button
+                            className="btn btn-secondary"
+                            style={{ width: '100%' }}
+                            onClick={() => setShowLimitModal(false)}
+                        >
+                            Agora não
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="hero-card" style={{ padding: '20px 24px', marginBottom: 24 }}>
                 <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Camera size={24} color="var(--color-primary)" /> AI Product Scanner
@@ -421,6 +567,26 @@ const ScanPage = () => {
                             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => processFile(e.target.files[0])} style={{ display: 'none' }} />
                             <input ref={galleryInputRef} type="file" accept="image/*" onChange={(e) => processFile(e.target.files[0])} style={{ display: 'none' }} />
 
+                            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: 10 }}>
+                                    Ou adicione produtos manualmente:
+                                </p>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <div className="input-with-icon" style={{ flex: 1 }}>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="Adicionar produto manualmente..."
+                                            value={manualInput}
+                                            onChange={e => setManualInput(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && addManualIngredient(true)}
+                                        />
+                                        <span className="input-icon"><Search size={16} /></span>
+                                    </div>
+                                    <button className="btn btn-secondary" onClick={() => addManualIngredient(true)}>+</button>
+                                </div>
+                            </div>
+
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 32 }}>
                                 <span className="info-pill"><Lightbulb size={12} /> Boa iluminação</span>
                                 <span className="info-pill"><Maximize size={12} /> De cima para baixo</span>
@@ -430,6 +596,7 @@ const ScanPage = () => {
                     )}
                 </div>
             )}
+
 
             {/* ===== ANALYZING ===== */}
             {step === 'analyzing' && (
@@ -461,27 +628,126 @@ const ScanPage = () => {
                     </div>
 
                     <div className="card" style={{ background: 'rgba(18, 42, 36, 0.4)', backdropFilter: 'blur(10px)' }}>
-                        <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
-                            Confirme os itens detectados. Pode adicionar produtos extras manualmente.
+                        <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                            Confirme os itens detectados. Toque para seleccionar/desseleccionar.
+                        </p>
+                        <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginBottom: 20 }}>
+                            ✏️ Use o lápis para <strong>corrigir um nome errado</strong> &nbsp;|&nbsp; 🗑️ Use o lixo para <strong>remover</strong>
                         </p>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                             {detected.map((item, idx) => (
                                 <div
                                     key={idx}
-                                    className={`ingredient-tag ${confirmed.includes(item.name) ? 'selected' : ''}`}
-                                    onClick={() => toggleIngredient(item.name)}
                                     style={{
-                                        padding: '12px', minHeight: 'auto',
-                                        flexDirection: 'column', alignItems: 'flex-start',
-                                        background: confirmed.includes(item.name) ? 'var(--color-primary)' : 'rgba(255,255,255,0.03)'
+                                        display: 'flex', alignItems: 'center', gap: 10,
+                                        padding: '10px 14px', borderRadius: 12,
+                                        background: confirmed.includes(item.name) ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.03)',
+                                        border: confirmed.includes(item.name) ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                                        transition: 'all .2s ease'
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginBottom: 6 }}>
-                                        <span style={{ fontSize: '1.1rem' }}>{item.emoji}</span>
-                                        <span style={{ flex: 1, fontWeight: 600, fontSize: '.9rem', color: confirmed.includes(item.name) ? '#064e3b' : 'white' }}>{item.name}</span>
+                                    {/* Checkbox area */}
+                                    <div
+                                        onClick={() => toggleIngredient(item.name)}
+                                        style={{
+                                            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: confirmed.includes(item.name) ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)',
+                                            border: confirmed.includes(item.name) ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                                            cursor: 'pointer', transition: 'all .2s'
+                                        }}
+                                    >
+                                        {confirmed.includes(item.name) && <Check size={16} color="#064e3b" strokeWidth={3} />}
                                     </div>
-                                    <ConfidenceBar value={item.confidence} />
+
+                                    {/* Emoji */}
+                                    <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>{item.emoji}</span>
+
+                                    {/* Name — editable or static */}
+                                    {editingIdx === idx ? (
+                                        <div style={{ flex: 1, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                            <input
+                                                type="text"
+                                                className="form-control"
+                                                value={editingName}
+                                                onChange={e => setEditingName(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') saveEdit();
+                                                    if (e.key === 'Escape') cancelEdit();
+                                                }}
+                                                autoFocus
+                                                style={{
+                                                    padding: '4px 10px', fontSize: '.88rem',
+                                                    minHeight: 0, height: 32, flex: 1
+                                                }}
+                                            />
+                                            <button
+                                                onClick={saveEdit}
+                                                style={{
+                                                    background: 'var(--color-primary)', border: 'none',
+                                                    borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center'
+                                                }}
+                                            >
+                                                <Check size={16} color="#064e3b" />
+                                            </button>
+                                            <button
+                                                onClick={cancelEdit}
+                                                style={{
+                                                    background: 'rgba(248,113,113,0.15)', border: 'none',
+                                                    borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center'
+                                                }}
+                                            >
+                                                <X size={16} color="#f87171" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span
+                                                onClick={() => toggleIngredient(item.name)}
+                                                style={{
+                                                    flex: 1, fontWeight: 600, fontSize: '.9rem',
+                                                    color: confirmed.includes(item.name) ? '#6ee7b7' : 'var(--text-secondary)',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {item.name}
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                                <ConfidenceBar value={item.confidence} />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* Action buttons — edit & delete */}
+                                    {editingIdx !== idx && (
+                                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); startEdit(idx); }}
+                                                title="Corrigir nome"
+                                                style={{
+                                                    background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.2)',
+                                                    borderRadius: 6, padding: '5px', cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}
+                                            >
+                                                <Pencil size={14} color="#a78bfa" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); removeProduct(idx); }}
+                                                title="Remover produto"
+                                                style={{
+                                                    background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.2)',
+                                                    borderRadius: 6, padding: '5px', cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}
+                                            >
+                                                <Trash2 size={14} color="#f87171" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -491,7 +757,7 @@ const ScanPage = () => {
                                 <input
                                     type="text"
                                     className="form-control"
-                                    placeholder="Adicionar extra..."
+                                    placeholder="Adicionar produto manualmente..."
                                     value={manualInput}
                                     onChange={e => setManualInput(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && addManualIngredient()}
@@ -508,7 +774,7 @@ const ScanPage = () => {
                         onClick={handleGenerateRecipes}
                         disabled={generatingRecipes || confirmed.length === 0}
                     >
-                        {generatingRecipes ? <><RefreshCw size={18} className="animate-spin" /> Gerando...</> : <><ChefHat size={18} /> Ver Receitas Potenciais</>}
+                        {generatingRecipes ? <><RefreshCw size={18} className="animate-spin" /> Gerando...</> : <><ChefHat size={18} /> Ver Receitas ({confirmed.length} produtos)</>}
                     </button>
                 </div>
             )}
@@ -525,13 +791,32 @@ const ScanPage = () => {
                         </button>
                     </div>
 
+                    {/* Confirmed products summary */}
+                    <div style={{
+                        background: 'rgba(52,211,153,0.06)', padding: '12px 16px', borderRadius: 12,
+                        marginBottom: 20, border: '1px solid rgba(52,211,153,0.12)',
+                        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'
+                    }}>
+                        <span style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--color-primary-light)' }}>📸 Seus produtos:</span>
+                        {confirmed.map((name, i) => (
+                            <span key={i} style={{
+                                padding: '3px 10px', borderRadius: 20, fontSize: '.78rem',
+                                background: 'rgba(52,211,153,0.15)', color: '#6ee7b7'
+                            }}>{name}</span>
+                        ))}
+                    </div>
+
+                    {/* SECTION 1: Recipes you can cook NOW */}
                     {(generatedRecipes.possible_recipes || []).length > 0 && (
                         <div style={{ marginBottom: 32 }}>
-                            <div className="page-header" style={{ marginBottom: 16 }}>
+                            <div className="page-header" style={{ marginBottom: 8 }}>
                                 <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <CheckCircle2 color="var(--color-primary)" size={20} /> Prontos para Cozinhar
+                                    <CheckCircle2 color="var(--color-primary)" size={20} /> Cozinhe Agora
                                 </h2>
                             </div>
+                            <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                                Receitas feitas <strong>apenas com os seus produtos</strong> — sem comprar nada!
+                            </p>
                             <div className="card-grid">
                                 {generatedRecipes.possible_recipes.map((recipe, i) => (
                                     <RecipeResultCard key={i} recipe={recipe} isOptional={false} />
@@ -540,18 +825,34 @@ const ScanPage = () => {
                         </div>
                     )}
 
-                    {(generatedRecipes.optional_recipes || []).length > 0 && (
+                    {/* SECTION 2: Suggestions if you buy more */}
+                    {((generatedRecipes.suggested_recipes || generatedRecipes.optional_recipes || []).length > 0) && (
                         <div style={{ marginBottom: 32 }}>
-                            <div className="page-header" style={{ marginBottom: 16 }}>
+                            <div className="page-header" style={{ marginBottom: 8 }}>
                                 <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <Sparkles color="var(--color-accent)" size={20} /> Sugestões Adicionais
+                                    <Sparkles color="var(--color-accent)" size={20} /> Se Comprar Mais...
                                 </h2>
                             </div>
+                            <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                                Pratos ainda melhores se comprar <strong>poucos ingredientes extra</strong>.
+                            </p>
                             <div className="card-grid">
-                                {generatedRecipes.optional_recipes.map((recipe, i) => (
+                                {(generatedRecipes.suggested_recipes || generatedRecipes.optional_recipes).map((recipe, i) => (
                                     <RecipeResultCard key={i} recipe={recipe} isOptional={true} />
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Economy tip */}
+                    {generatedRecipes.economy_tip && (
+                        <div style={{
+                            background: 'rgba(52,211,153,0.06)', padding: 16, borderRadius: 12,
+                            marginBottom: 20, border: '1px solid rgba(52,211,153,0.12)'
+                        }}>
+                            <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                💡 <strong>Dica económica:</strong> {generatedRecipes.economy_tip}
+                            </p>
                         </div>
                     )}
 
@@ -562,7 +863,7 @@ const ScanPage = () => {
                         disabled={generatingRecipes}
                     >
                         <RefreshCw size={18} className={generatingRecipes ? 'animate-spin' : ''} />
-                        {generatingRecipes ? ' Gerando...' : ' Gerar Outras Opções'}
+                        {generatingRecipes ? ' Gerando...' : ' Gerar Outras Receitas'}
                     </button>
                 </div>
             )}
@@ -599,3 +900,5 @@ const ScanPage = () => {
 };
 
 export default ScanPage;
+
+

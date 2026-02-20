@@ -15,6 +15,8 @@ import ProfilePage from './pages/ProfilePage';
 import FavoritesPage from './pages/FavoritesPage';
 import HistoryPage from './pages/HistoryPage';
 import NotFoundPage from './pages/NotFoundPage';
+import PlansPage from './pages/PlansPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 const ProtectedRoute = () => {
     const { user, loading } = useAuth();
@@ -29,6 +31,21 @@ const ProtectedRoute = () => {
     return user ? <Outlet /> : <Navigate to="/login" />;
 };
 
+const PLAN_ORDER = ['free', 'basic', 'pro', 'premium'];
+
+const PlanRoute = ({ minPlan }) => {
+    const { user } = useAuth();
+    if (user?.role === 'admin') return <Outlet />;
+    const currentIdx = PLAN_ORDER.indexOf(user?.plan || 'free');
+    const minIdx = PLAN_ORDER.indexOf(minPlan || 'free');
+    return currentIdx >= minIdx ? <Outlet /> : <Navigate to="/plans" />;
+};
+
+const AdminRoute = () => {
+    const { user } = useAuth();
+    return user?.role === 'admin' ? <Outlet /> : <Navigate to="/" />;
+};
+
 const AppRoutes = () => {
     const { user } = useAuth();
 
@@ -36,6 +53,7 @@ const AppRoutes = () => {
         <Routes>
             <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
             <Route path="/register" element={user ? <Navigate to="/" /> : <RegisterPage />} />
+            <Route path="/plans" element={<PlansPage />} />
 
             {/* Protected routes with shared layout */}
             <Route element={<ProtectedRoute />}>
@@ -44,12 +62,19 @@ const AppRoutes = () => {
                     <Route path="/scan" element={<ScanPage />} />
                     <Route path="/recipes" element={<RecipesPage />} />
                     <Route path="/recipes/:id" element={<RecipeDetailPage />} />
-                    <Route path="/meal-plan" element={<MealPlanPage />} />
-                    <Route path="/shopping-list" element={<ShoppingListPage />} />
-                    <Route path="/nutrition" element={<NutritionPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/favorites" element={<FavoritesPage />} />
-                    <Route path="/history" element={<HistoryPage />} />
+                    <Route element={<PlanRoute minPlan="basic" />}>
+                        <Route path="/meal-plan" element={<MealPlanPage />} />
+                        <Route path="/favorites" element={<FavoritesPage />} />
+                        <Route path="/history" element={<HistoryPage />} />
+                    </Route>
+                    <Route element={<PlanRoute minPlan="pro" />}>
+                        <Route path="/shopping-list" element={<ShoppingListPage />} />
+                        <Route path="/nutrition" element={<NutritionPage />} />
+                    </Route>
+                    <Route element={<AdminRoute />}>
+                        <Route path="/admin/users" element={<AdminUsersPage />} />
+                    </Route>
                 </Route>
             </Route>
 

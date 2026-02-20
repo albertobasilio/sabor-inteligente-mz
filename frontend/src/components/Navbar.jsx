@@ -3,18 +3,21 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     Home, ScanLine, ChefHat, Heart, History,
-    CalendarDays, BarChart3, User, LogOut, ChevronDown, ChevronUp, Menu, X
+    CalendarDays, BarChart3, User, LogOut, ChevronDown, ChevronUp, Menu, X, CreditCard, Shield
 } from 'lucide-react';
 import './Navbar.css';
 
-const navItems = [
-    { path: '/', icon: Home, label: 'Início' },
-    { path: '/scan', icon: ScanLine, label: 'Escanear' },
-    { path: '/recipes', icon: ChefHat, label: 'Receitas' },
-    { path: '/favorites', icon: Heart, label: 'Favoritos' },
-    { path: '/history', icon: History, label: 'Histórico' },
-    { path: '/meal-plan', icon: CalendarDays, label: 'Plano' },
-    { path: '/nutrition', icon: BarChart3, label: 'Nutrição' },
+const PLAN_ORDER = ['free', 'basic', 'pro', 'premium'];
+
+const baseNavItems = [
+    { path: '/', icon: Home, label: 'Inicio', minPlan: 'free' },
+    { path: '/scan', icon: ScanLine, label: 'Escanear', minPlan: 'free' },
+    { path: '/recipes', icon: ChefHat, label: 'Receitas', minPlan: 'free' },
+    { path: '/favorites', icon: Heart, label: 'Favoritos', minPlan: 'basic' },
+    { path: '/history', icon: History, label: 'Historico', minPlan: 'basic' },
+    { path: '/meal-plan', icon: CalendarDays, label: 'Plano', minPlan: 'basic' },
+    { path: '/nutrition', icon: BarChart3, label: 'Nutricao', minPlan: 'pro' },
+    { path: '/plans', icon: CreditCard, label: 'Planos', minPlan: 'free' },
 ];
 
 const Navbar = () => {
@@ -23,6 +26,17 @@ const Navbar = () => {
     const location = useLocation();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+
+    const hasPlan = (minPlan) => {
+        if (user?.role === 'admin') return true;
+        const currentIdx = PLAN_ORDER.indexOf(user?.plan || 'free');
+        const minIdx = PLAN_ORDER.indexOf(minPlan || 'free');
+        return currentIdx >= minIdx;
+    };
+
+    const navItems = user?.role === 'admin'
+        ? [...baseNavItems, { path: '/admin/users', icon: Shield, label: 'Admin', minPlan: 'free' }]
+        : baseNavItems;
 
     const handleLogout = () => {
         logout();
@@ -34,9 +48,18 @@ const Navbar = () => {
         return item ? item.label : 'Sabor Inteligente';
     };
 
+    const getPlanName = (plan) => {
+        if (user?.role === 'admin') return 'Admin';
+        switch (plan) {
+            case 'premium': return 'Premium';
+            case 'pro': return 'Pro';
+            case 'basic': return 'Basico';
+            case 'free': default: return 'Gratuito';
+        }
+    };
+
     return (
         <>
-            {/* Desktop Top Bar */}
             <div className="topbar hide-mobile">
                 <div className="topbar-left">
                     <h2 className="topbar-title">{getPageTitle()}</h2>
@@ -74,22 +97,20 @@ const Navbar = () => {
                 </div>
             </div>
 
-            {/* Mobile top bar */}
             <div className="mobile-topbar show-mobile">
                 <button className="hamburger" onClick={() => setMobileOpen(!mobileOpen)}>
                     {mobileOpen ? <X size={22} /> : <Menu size={22} />}
                 </button>
-                <span className="mobile-logo">🇲🇿 Sabor Inteligente</span>
+                <span className="mobile-logo">Sabor Inteligente</span>
                 <NavLink to="/profile" className="mobile-avatar-link">
                     <div className="mobile-avatar">{user?.name?.[0] || 'U'}</div>
                 </NavLink>
             </div>
 
-            {/* Sidebar */}
             <nav className={`sidebar ${mobileOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
                     <div className="logo-container">
-                        <span className="logo-flag">🇲🇿</span>
+                        <span className="logo-flag">MZ</span>
                         <div>
                             <h2 className="logo-text">Sabor</h2>
                             <h2 className="logo-text accent">Inteligente</h2>
@@ -100,10 +121,11 @@ const Navbar = () => {
                 <div className="sidebar-nav">
                     {navItems.map(item => {
                         const Icon = item.icon;
+                        const targetPath = hasPlan(item.minPlan) ? item.path : '/plans';
                         return (
                             <NavLink
                                 key={item.path}
-                                to={item.path}
+                                to={targetPath}
                                 end={item.path === '/'}
                                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                                 onClick={() => setMobileOpen(false)}
@@ -120,7 +142,7 @@ const Navbar = () => {
                         <div className="user-avatar">{user?.name?.[0] || 'U'}</div>
                         <div className="user-details">
                             <span className="user-name">{user?.name || 'Utilizador'}</span>
-                            <span className="user-plan">{user?.plan === 'premium' ? '⭐ Premium' : 'Gratuito'}</span>
+                            <span className="user-plan">{getPlanName(user?.plan)}</span>
                         </div>
                     </div>
                     <button className="btn-logout" onClick={handleLogout} title="Sair">
@@ -129,17 +151,16 @@ const Navbar = () => {
                 </div>
             </nav>
 
-            {/* Mobile overlay */}
             {mobileOpen && <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />}
 
-            {/* Mobile bottom nav */}
             <div className="mobile-bottom-nav show-mobile">
                 {navItems.slice(0, 5).map(item => {
                     const Icon = item.icon;
+                    const targetPath = hasPlan(item.minPlan) ? item.path : '/plans';
                     return (
                         <NavLink
                             key={item.path}
-                            to={item.path}
+                            to={targetPath}
                             end={item.path === '/'}
                             className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
                         >
